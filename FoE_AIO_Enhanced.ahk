@@ -27,7 +27,7 @@ CoordMode, Mouse, Screen
 global pToken
 global gPaused := false
 global gStop := true
-global gLogFile := A_ScriptDir "\logs\log_execucao.log"
+global gLogFileCbG ; Nova inicialização da variável de log
 global gConfig := A_ScriptDir "\config\cbg_config.ini"
 global gImagensPath := A_ScriptDir "\imagens\cbg"
 global StatusLabel
@@ -36,6 +36,7 @@ global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, 
 global PicAtk, PicOk1, PicBat1, PicBat2, PicDimas, PicDef, PicAlerta, PicFuga, PicRender
 global gHotkeyPause, gHotkeyExit, gMaxLogLines, HotkeyPauseEdit, HotkeyExitEdit
 global gImageDimensions ; Variável para armazenar as dimensões em cache
+global MoverFixoVelocidade ; Nova variável global para a velocidade do mouse
 
 ; --- ADIÇÕES PARA O CONTROLE DE SLEEP ---
 global Sleep_Tempo, Sleep_PausaLoop, Sleep_RecorteMouse, Sleep_SalvarRecorte, Sleep_Tooltip, Sleep_FugaClick, Sleep_RenderLoop
@@ -57,6 +58,15 @@ if !pToken := Gdip_Startup()
     ExitApp
 }
 OnExit, Gdip_Shutdown_Handler
+
+; --- GERAÇÃO DINÂMICA DO NOME DO LOG ---
+FormatTime, DataHoraAtual,, yyyy-MM-dd_HH-mm-ss
+gLogFileCbG := A_ScriptDir "\logs\log_cbg_" DataHoraAtual ".log"
+; --- FIM DA GERAÇÃO DINÂMICA ---
+
+; Garante que o diretório de logs exista
+if !FileExist(A_ScriptDir "\logs")
+    FileCreateDir, %A_ScriptDir%\logs
 
 LerConfiguracoes()
 CacheImageDimensions() ; Chama a nova função para criar o cache
@@ -129,6 +139,7 @@ AbrirConfiguracoes() {
     global gHotkeyPause, gHotkeyExit, HotkeyPauseEdit, HotkeyExitEdit
     global PicAtk, PicDef, PicTropas, PicBat1, PicBat2, PicOk1, PicAlerta, PicFuga, PicRender, PicDimas
     global Sleep_Tempo, Sleep_PausaLoop, Sleep_RecorteMouse, Sleep_SalvarRecorte, Sleep_Tooltip, Sleep_FugaClick, Sleep_RenderLoop
+    global MoverFixoVelocidade
 
     Gui, 2:Destroy
     Gui, 2:New, +Resize , Configurações do Macro
@@ -143,6 +154,8 @@ AbrirConfiguracoes() {
     Gui, 2:Add, Edit, x180 y65 w60 vMax_Offset, %Max_Offset%
     Gui, 2:Add, Text, x20 y100, Linhas do Log:
     Gui, 2:Add, Edit, x180 y95 w60 vLinhasDoLog, %gMaxLogLines%
+    Gui, 2:Add, Text, x20 y130, Velocidade Mouse:
+    Gui, 2:Add, Edit, x180 y125 w60 vMoverFixoVelocidade, %MoverFixoVelocidade%
 
     Gui, 2:Add, GroupBox, x280 y40 w250 h250, Coordenadas
     Gui, 2:Add, Text, x290 y70, Mover Fixo X:
@@ -242,6 +255,7 @@ SalvarConfiguracoes() {
     global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
     global gHotkeyPause, gHotkeyExit, HotkeyPauseEdit, HotkeyExitEdit
     global Sleep_Tempo, Sleep_PausaLoop, Sleep_RecorteMouse, Sleep_SalvarRecorte, Sleep_Tooltip, Sleep_FugaClick, Sleep_RenderLoop
+    global MoverFixoVelocidade
     
     Gui, 2:Submit, NoHide
     
@@ -249,6 +263,7 @@ SalvarConfiguracoes() {
     IniWrite, %MoverFixoY%, %gConfig%, GERAL, MoverFixoY
     IniWrite, %Max_Offset%, %gConfig%, GERAL, Max_Offset
     IniWrite, %LinhasDoLog%, %gConfig%, GERAL, LinhasDoLog
+    IniWrite, %MoverFixoVelocidade%, %gConfig%, GERAL, MoverFixoVelocidade
     IniWrite, %Tolerancia%, %gConfig%, IMAGENS, Tolerancia
     
     IniWrite, %imgAtk%, %gConfig%, IMAGENS, atk
@@ -294,13 +309,14 @@ VoltarInicio() {
 }
 
 LimparLog() {
-    global gLogFile
-    if FileExist(gLogFile) {
-        FileDelete, %gLogFile%
-        MsgBox, , Limpeza do log, O arquivo de log foi limpo.
-    } else {
-        MsgBox, , Limpeza do log, O arquivo de log não existe.
+    global gLogFileCbG
+    global logsPath := A_ScriptDir "\logs"
+    if !FileExist(logsPath) {
+        MsgBox, , Limpeza do log, O diretório de logs não existe.
+        return
     }
+    FileDelete, %logsPath%\log_*.log
+    MsgBox, , Limpeza do log, Todos os arquivos de log antigos foram limpos.
 }
 
 ; #################################################################################
@@ -315,9 +331,11 @@ LerConfiguracoes() {
     global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
     global gHotkeyPause, gHotkeyExit, gMaxLogLines
     global Sleep_Tempo, Sleep_PausaLoop, Sleep_RecorteMouse, Sleep_SalvarRecorte, Sleep_Tooltip, Sleep_FugaClick, Sleep_RenderLoop
+    global MoverFixoVelocidade
     
     IniRead, MoverFixoX, %gConfig%, GERAL, MoverFixoX, 769
     IniRead, MoverFixoY, %gConfig%, GERAL, MoverFixoY, 155
+    IniRead, MoverFixoVelocidade, %gConfig%, GERAL, MoverFixoVelocidade, 0
     IniRead, Max_Offset, %gConfig%, GERAL, Max_Offset, 42
     IniRead, gMaxLogLines, %gConfig%, GERAL, LinhasDoLog, 20
     
@@ -384,9 +402,9 @@ DesativarHotkeys() {
 }
 
 Log(msg) {
-    global gLogFile
+    global gLogFileCbG, Sleep_Tooltip
     FormatTime, t,, yyyy-MM-dd HH:mm:ss
-    FileAppend, [%t%] %msg%`n, %gLogFile%
+    FileAppend, [%t%] %msg%`n, %gLogFileCbG%
     ToolTip, %msg%
     SetTimer, RemoveToolTip, -%Sleep_Tooltip%
 }
@@ -487,10 +505,10 @@ HandleCombatActions() {
 }
 
 HandlePopups() {
-    global imgOk1, imgDimas, gImagensPath
+    global imgOk1, imgDimas, gImagensPath, Tolerancia
     
     ; Busca a imagem Ok1.png. Se encontrar, envia o Escape.
-    ImageSearch, Ok1X, Ok1Y, 0, 0, A_ScreenWidth, A_ScreenHeight, *20 %gImagensPath%\%imgOk1%
+    ImageSearch, Ok1X, Ok1Y, 0, 0, A_ScreenWidth, A_ScreenHeight, *%Tolerancia% %gImagensPath%\%imgOk1%
     if (ErrorLevel = 0)
     {
         Send, {Escape}
@@ -498,7 +516,7 @@ HandlePopups() {
     }
 
     ; Busca a imagem Dimas.png. Se encontrar, envia o Escape.
-    ImageSearch, DimasX, DimasY, 0, 0, A_ScreenWidth, A_ScreenHeight, *20 %gImagensPath%\%imgDimas%
+    ImageSearch, DimasX, DimasY, 0, 0, A_ScreenWidth, A_ScreenHeight, *%Tolerancia% %gImagensPath%\%imgDimas%
     if (ErrorLevel = 0)
     {
         Send, {Escape}
@@ -541,7 +559,7 @@ Loop {
         break
     }
 
-    MouseMove, %MoverFixoX%, %MoverFixoY%
+    MouseMove, %MoverFixoX%, %MoverFixoY%, %MoverFixoVelocidade%
     
     CheckForAttacks()
     HandleCombatActions()
