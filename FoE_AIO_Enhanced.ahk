@@ -1,6 +1,6 @@
 ﻿; ==================================
 ; Nome do Script: FoE AIO - Jeizon Farias
-; Versão: 9.0 (Aprimorada)
+; Versão: 9.1 (Controle total de Sleeps)
 ; Data da Versão: 11-08-2025
 ; ==================================
 
@@ -31,10 +31,15 @@ global gLogFile := A_ScriptDir "\logs\log_execucao.log"
 global gConfig := A_ScriptDir "\config\cbg_config.ini"
 global gImagensPath := A_ScriptDir "\imagens\cbg"
 global StatusLabel
-global MoverFixoX, MoverFixoY, Sleep_Tempo, Max_Offset, Tolerancia, LinhasDoLog
+global MoverFixoX, MoverFixoY, Max_Offset, Tolerancia, LinhasDoLog
 global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
 global PicAtk, PicOk1, PicBat1, PicBat2, PicDimas, PicDef, PicAlerta, PicFuga, PicRender
 global gHotkeyPause, gHotkeyExit, gMaxLogLines, HotkeyPauseEdit, HotkeyExitEdit
+global gImageDimensions ; Variável para armazenar as dimensões em cache
+
+; --- ADIÇÕES PARA O CONTROLE DE SLEEP ---
+global Sleep_Tempo, Sleep_PausaLoop, Sleep_RecorteMouse, Sleep_SalvarRecorte, Sleep_Tooltip, Sleep_FugaClick, Sleep_RenderLoop
+; --- FIM ADIÇÕES ---
 
 ; Variáveis para a função de recorte
 global gCropImgPath, gCropControlName, gCropPicControl
@@ -54,6 +59,7 @@ if !pToken := Gdip_Startup()
 OnExit, Gdip_Shutdown_Handler
 
 LerConfiguracoes()
+CacheImageDimensions() ; Chama a nova função para criar o cache
 SetHotkeys()
 
 Menu, Tray, Add, Iniciar / Pausar / Retomar, HotkeyPauseLabel
@@ -111,22 +117,18 @@ Return
 
 AbrirCbgGui:
     Gui, 1:Hide
-    MostrarGuiCbgMenu() 
+    MostrarGuiCbgMenu()
 Return
 
 ; ==================================
 ; LÓGICA DA GUI DE CONFIGURAÇÕES
 ; ==================================
-AbrirConfiguracoes:
-    Gui, 1:Hide
-    AbrirConfiguracoes()
-Return
-
 AbrirConfiguracoes() {
-    global MoverFixoX, MoverFixoY, Sleep_Tempo, Max_Offset, Tolerancia, gMaxLogLines, LinhasDoLog
+    global MoverFixoX, MoverFixoY, Max_Offset, Tolerancia, gMaxLogLines, LinhasDoLog
     global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
     global gHotkeyPause, gHotkeyExit, HotkeyPauseEdit, HotkeyExitEdit
     global PicAtk, PicDef, PicTropas, PicBat1, PicBat2, PicOk1, PicAlerta, PicFuga, PicRender, PicDimas
+    global Sleep_Tempo, Sleep_PausaLoop, Sleep_RecorteMouse, Sleep_SalvarRecorte, Sleep_Tooltip, Sleep_FugaClick, Sleep_RenderLoop
 
     Gui, 2:Destroy
     Gui, 2:New, +Resize , Configurações do Macro
@@ -137,12 +139,10 @@ AbrirConfiguracoes() {
     ; ABA GERAIS
     Gui, 2:Tab, 1
     Gui, 2:Add, GroupBox, x10 y40 w250 h250, Gerais
-    Gui, 2:Add, Text, x20 y70, Tempo de Espera (ms):
-    Gui, 2:Add, Edit, x180 y65 w60 vSleep_Tempo, %Sleep_Tempo%
-    Gui, 2:Add, Text, x20 y100, Offset Máximo:
-    Gui, 2:Add, Edit, x180 y95 w60 vMax_Offset, %Max_Offset%
-    Gui, 2:Add, Text, x20 y130, Linhas do Log:
-    Gui, 2:Add, Edit, x180 y125 w60 vLinhasDoLog, %gMaxLogLines%
+    Gui, 2:Add, Text, x20 y70, Offset Máximo:
+    Gui, 2:Add, Edit, x180 y65 w60 vMax_Offset, %Max_Offset%
+    Gui, 2:Add, Text, x20 y100, Linhas do Log:
+    Gui, 2:Add, Edit, x180 y95 w60 vLinhasDoLog, %gMaxLogLines%
 
     Gui, 2:Add, GroupBox, x280 y40 w250 h250, Coordenadas
     Gui, 2:Add, Text, x290 y70, Mover Fixo X:
@@ -155,6 +155,24 @@ AbrirConfiguracoes() {
     Gui, 2:Add, Edit, x720 y65 w60 vHotkeyPauseEdit, %gHotkeyPause%
     Gui, 2:Add, Text, x560 y100, Hotkey Encerrar:
     Gui, 2:Add, Edit, x720 y95 w60 vHotkeyExitEdit, %gHotkeyExit%
+
+    ; --- ADIÇÕES PARA O CONTROLE DE SLEEP ---
+    Gui, 2:Add, GroupBox, x10 y300 w800 h120, Tempos de Espera (ms)
+    Gui, 2:Add, Text, x20 y330, Loop Principal:
+    Gui, 2:Add, Edit, x120 y325 w60 vSleep_Tempo, %Sleep_Tempo%
+    Gui, 2:Add, Text, x190 y330, Loop Pausa:
+    Gui, 2:Add, Edit, x310 y325 w60 vSleep_PausaLoop, %Sleep_PausaLoop%
+    Gui, 2:Add, Text, x380 y330, Recorte Mouse:
+    Gui, 2:Add, Edit, x500 y325 w60 vSleep_RecorteMouse, %Sleep_RecorteMouse%
+    Gui, 2:Add, Text, x570 y330, Salvar Recorte:
+    Gui, 2:Add, Edit, x640 y325 w60 vSleep_SalvarRecorte, %Sleep_SalvarRecorte%
+    Gui, 2:Add, Text, x20 y360, Click Fuga:
+    Gui, 2:Add, Edit, x120 y355 w60 vSleep_FugaClick, %Sleep_FugaClick%
+    Gui, 2:Add, Text, x190 y360, Loop Render:
+    Gui, 2:Add, Edit, x310 y355 w60 vSleep_RenderLoop, %Sleep_RenderLoop%
+    Gui, 2:Add, Text, x380 y360, Tooltip:
+    Gui, 2:Add, Edit, x500 y355 w60 vSleep_Tooltip, %Sleep_Tooltip%
+    ; --- FIM ADIÇÕES ---
 
     ; ABA IMAGENS
     Gui, 2:Tab, 2
@@ -200,7 +218,7 @@ AbrirConfiguracoes() {
 }
 
 AddImageControl(x, y, label, varName, picVarName) {
-    global gImagensPath
+    global gImagensPath, gImageDimensions
     imgPath := %varName%
     
     editX := x + 70, editY := y - 5, buttonX := x + 175, picX := x + 70, picY := y + 25
@@ -209,21 +227,26 @@ AddImageControl(x, y, label, varName, picVarName) {
     Gui, 2:Add, Edit, x%editX% y%editY% w100 v%varName%, %imgPath%
     Gui, 2:Add, Button, x%buttonX% y%editY% w20 h20 gCapturarImagem, 🔍
     
-    if ResizeImageProportional(imgPath, w, h, 80, 80)
+    if (gImageDimensions[imgPath].w && gImageDimensions[imgPath].h) {
+        w := gImageDimensions[imgPath].w
+        h := gImageDimensions[imgPath].h
+        ResizeImageProportional(w, h, 80, 80)
         Gui, 2:Add, Picture, x%picX% y%picY% w%w% h%h% v%picVarName%, % gImagensPath . "\" . imgPath
-    else
+    } else {
         Gui, 2:Add, Text, x%picX% y%picY% v%picVarName%, (Não encontrada)
+    }
 }
 
 SalvarConfiguracoes() {
-    global gConfig, gImagensPath, MoverFixoX, MoverFixoY, Sleep_Tempo, Max_Offset, gMaxLogLines, LinhasDoLog, Tolerancia
+    global gConfig, gImagensPath, MoverFixoX, MoverFixoY, Max_Offset, gMaxLogLines, LinhasDoLog, Tolerancia
     global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
     global gHotkeyPause, gHotkeyExit, HotkeyPauseEdit, HotkeyExitEdit
+    global Sleep_Tempo, Sleep_PausaLoop, Sleep_RecorteMouse, Sleep_SalvarRecorte, Sleep_Tooltip, Sleep_FugaClick, Sleep_RenderLoop
+    
     Gui, 2:Submit, NoHide
     
     IniWrite, %MoverFixoX%, %gConfig%, GERAL, MoverFixoX
     IniWrite, %MoverFixoY%, %gConfig%, GERAL, MoverFixoY
-    IniWrite, %Sleep_Tempo%, %gConfig%, GERAL, Sleep_Tempo
     IniWrite, %Max_Offset%, %gConfig%, GERAL, Max_Offset
     IniWrite, %LinhasDoLog%, %gConfig%, GERAL, LinhasDoLog
     IniWrite, %Tolerancia%, %gConfig%, IMAGENS, Tolerancia
@@ -246,7 +269,18 @@ SalvarConfiguracoes() {
     gHotkeyExit := HotkeyExitEdit
     SetHotkeys()
 
+    ; --- ADIÇÕES PARA O CONTROLE DE SLEEP ---
+    IniWrite, %Sleep_Tempo%, %gConfig%, SLEEPS, Sleep_Tempo
+    IniWrite, %Sleep_PausaLoop%, %gConfig%, SLEEPS, Sleep_PausaLoop
+    IniWrite, %Sleep_RecorteMouse%, %gConfig%, SLEEPS, Sleep_RecorteMouse
+    IniWrite, %Sleep_SalvarRecorte%, %gConfig%, SLEEPS, Sleep_SalvarRecorte
+    IniWrite, %Sleep_Tooltip%, %gConfig%, SLEEPS, Sleep_Tooltip
+    IniWrite, %Sleep_FugaClick%, %gConfig%, SLEEPS, Sleep_FugaClick
+    IniWrite, %Sleep_RenderLoop%, %gConfig%, SLEEPS, Sleep_RenderLoop
+    ; --- FIM ADIÇÕES ---
+
     LerConfiguracoes()
+    CacheImageDimensions() ; Recarrega o cache após salvar as configurações
     
     MsgBox, 64, Sucesso, Configurações salvas e aplicadas!
     VoltarInicio()
@@ -256,7 +290,7 @@ VoltarInicio() {
 2GuiClose:
     Gui, 2:Destroy
     MostrarGuiCbgMenu()
-    Return ;
+    Return
 }
 
 LimparLog() {
@@ -277,12 +311,13 @@ LimparLog() {
 ; FUNÇÕES DE APOIO
 ; ==================================
 LerConfiguracoes() {
-    global gConfig, MoverFixoX, MoverFixoY, Sleep_Tempo, Max_Offset, Tolerancia
+    global gConfig, MoverFixoX, MoverFixoY, Max_Offset, Tolerancia
     global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
     global gHotkeyPause, gHotkeyExit, gMaxLogLines
+    global Sleep_Tempo, Sleep_PausaLoop, Sleep_RecorteMouse, Sleep_SalvarRecorte, Sleep_Tooltip, Sleep_FugaClick, Sleep_RenderLoop
+    
     IniRead, MoverFixoX, %gConfig%, GERAL, MoverFixoX, 769
     IniRead, MoverFixoY, %gConfig%, GERAL, MoverFixoY, 155
-    IniRead, Sleep_Tempo, %gConfig%, GERAL, Sleep_Tempo, 30
     IniRead, Max_Offset, %gConfig%, GERAL, Max_Offset, 42
     IniRead, gMaxLogLines, %gConfig%, GERAL, LinhasDoLog, 20
     
@@ -300,14 +335,44 @@ LerConfiguracoes() {
 
     IniRead, gHotkeyPause, %gConfig%, HOTKEYS, Pause, F8
     IniRead, gHotkeyExit, %gConfig%, HOTKEYS, Exit, F9
+    
+    ; --- ADIÇÕES PARA O CONTROLE DE SLEEP ---
+    IniRead, Sleep_Tempo, %gConfig%, SLEEPS, Sleep_Tempo, 30
+    IniRead, Sleep_PausaLoop, %gConfig%, SLEEPS, Sleep_PausaLoop, 100
+    IniRead, Sleep_RecorteMouse, %gConfig%, SLEEPS, Sleep_RecorteMouse, 10
+    IniRead, Sleep_SalvarRecorte, %gConfig%, SLEEPS, Sleep_SalvarRecorte, 200
+    IniRead, Sleep_Tooltip, %gConfig%, SLEEPS, Sleep_Tooltip, 1500
+    IniRead, Sleep_FugaClick, %gConfig%, SLEEPS, Sleep_FugaClick, 100
+    IniRead, Sleep_RenderLoop, %gConfig%, SLEEPS, Sleep_RenderLoop, 100
+    ; --- FIM ADIÇÕES ---
 }
+
+CacheImageDimensions() {
+    global gImageDimensions, gImagensPath
+    global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
+
+    gImageDimensions := {}
+
+    for k, v in {atk: imgAtk, def: imgDef, tropas: imgTropas, bat1: imgBat1, bat2: imgBat2, ok1: imgOk1, alerta: imgAlerta, fuga: imgFuga, render: imgRender, dimas: imgDimas} {
+        fullImgPath := gImagensPath . "\" . v
+        if FileExist(fullImgPath) {
+            pBitmap := Gdip_CreateBitmapFromFile(fullImgPath)
+            if (pBitmap) {
+                Gdip_GetImageDimensions(pBitmap, w, h)
+                gImageDimensions[v] := {w: w, h: h}
+                Gdip_DisposeImage(pBitmap)
+            }
+        }
+    }
+}
+; -----------------------------
 
 SetHotkeys() {
     global gHotkeyPause, gHotkeyExit
     if (gHotkeyPause)
         Hotkey, %gHotkeyPause%, HotkeyPauseLabel, On
     if (gHotkeyExit)
-        Hotkey, %gHotkeyExit%, SairScriptFunc, On ; Aponta para a função
+        Hotkey, %gHotkeyExit%, SairScriptFunc, On
 }
 
 DesativarHotkeys() {
@@ -323,28 +388,35 @@ Log(msg) {
     FormatTime, t,, yyyy-MM-dd HH:mm:ss
     FileAppend, [%t%] %msg%`n, %gLogFile%
     ToolTip, %msg%
-    SetTimer, RemoveToolTip, -2000
+    SetTimer, RemoveToolTip, -%Sleep_Tooltip%
 }
 
 RemoveToolTip() {
     ToolTip
 }
 
-; Função original para encontrar e clicar na imagem
+; Função original para encontrar e clicar na imagem (MODIFICADA PARA USAR CACHE)
 FindAndClick(imgPath, ByRef outX, ByRef outY, clickType="center") {
-    global Tolerancia, Max_Offset, gImagensPath
+    global Tolerancia, Max_Offset, gImagensPath, gImageDimensions
     
     ImageSearch, outX, outY, 0, 0, A_ScreenWidth, A_ScreenHeight, *%Tolerancia% %gImagensPath%\%imgPath%
     
     if (ErrorLevel = 0) {
         Log("[ENCONTRADA] Imagem '" . imgPath . "' em X: " . outX . ", Y: " . outY)
         
-        ; Obter as dimensões da imagem encontrada
-        pBitmap := Gdip_CreateBitmapFromFile(gImagensPath . "\" . imgPath)
-        if (!pBitmap)
-            return false
-        Gdip_GetImageDimensions(pBitmap, w, h)
-        Gdip_DisposeImage(pBitmap)
+        ; --- CÓDIGO OTIMIZADO: USANDO CACHE ---
+        if gImageDimensions.HasKey(imgPath) {
+            w := gImageDimensions[imgPath].w
+            h := gImageDimensions[imgPath].h
+        } else {
+            ; Fallback caso a imagem não esteja no cache (pouco provável)
+            pBitmap := Gdip_CreateBitmapFromFile(gImagensPath . "\" . imgPath)
+            if (!pBitmap)
+                return false
+            Gdip_GetImageDimensions(pBitmap, w, h)
+            Gdip_DisposeImage(pBitmap)
+        }
+        ; --- FIM DO CÓDIGO OTIMIZADO ---
         
         if (clickType = "center") {
             outX += w // 2
@@ -366,24 +438,16 @@ FindAndClick(imgPath, ByRef outX, ByRef outY, clickType="center") {
     return false
 }
 
-ResizeImageProportional(imgPath, ByRef w, ByRef h, maxWidth=100, maxHeight=100) {
-    global gImagensPath
-    fullImgPath := gImagensPath . "\" . imgPath
-    if !FileExist(fullImgPath)
-        return false
-    pBitmap := Gdip_CreateBitmapFromFile(fullImgPath)
-    if (!pBitmap)
-        return false
-    Gdip_GetImageDimensions(pBitmap, originalW, originalH)
-    if (originalW > originalH) {
-        w := maxWidth
-        h := (originalH * maxWidth) // originalW
+ResizeImageProportional(ByRef w, ByRef h, maxWidth=100, maxHeight=100) {
+    if (w > h) {
+        w_new := maxWidth
+        h_new := (h * maxWidth) // w
     } else {
-        h := maxHeight
-        w := (originalW * maxHeight) // originalH
+        h_new := maxHeight
+        w_new := (w * maxHeight) // h
     }
-    Gdip_DisposeImage(pBitmap)
-    return true
+    w := w_new
+    h := h_new
 }
 
 ; ==================================
@@ -443,20 +507,20 @@ HandlePopups() {
 }
 
 HandleFleeOption() {
-    global imgAlerta, imgFuga, imgRender
+    global imgAlerta, imgFuga, imgRender, Sleep_FugaClick, Sleep_RenderLoop
     
     ; Busca a imagem Alerta.png sem clicar nela
     if FindAndClick(imgAlerta, AlertaX, AlertaY, "noclick") {
         Log("[ENCONTRADA] Alerta.png. Buscando Fuga.png...")
         if FindAndClick(imgFuga, FugaX, FugaY, "center") {
-            Log("[CLICK] Fuga.png detectado e clicado. Aguardando 100ms...")
-            Sleep, 100
+            Log("[CLICK] Fuga.png detectado e clicado. Aguardando %Sleep_FugaClick%ms...")
+            Sleep, %Sleep_FugaClick%
             Loop {
                 if FindAndClick(imgRender, RenderX, RenderY, "center") {
                     Log("[CLICK] Render.png detectado e clicado.")
                     break
                 }
-                Sleep, 100
+                Sleep, %Sleep_RenderLoop%
             }
         }
     }
@@ -468,7 +532,7 @@ HandleFleeOption() {
 LoopPrincipal:
 Loop {
     while (gPaused) {
-        Sleep, 100
+        Sleep, %Sleep_PausaLoop%
         if (gStop)
             break
     }
@@ -501,6 +565,8 @@ IniciarMacro:
         gPaused := false
         Gui, 1:Hide
         Log("[INFO] Macro iniciado via botão 'Iniciar'.")
+        ToolTip, Macro Iniciada!
+        SetTimer, RemoveToolTip, -%Sleep_Tooltip%
         Gosub, LoopPrincipal
     }
 Return
@@ -513,7 +579,7 @@ HotkeyPauseLabel:
         Gui, 1:Hide
         Log("[INFO] Macro iniciado via Hotkey/Botão.")
         ToolTip, Macro Iniciada!
-        SetTimer, RemoveToolTip, -1500
+        SetTimer, RemoveToolTip, -%Sleep_Tooltip%
         Gosub, LoopPrincipal
         Return
     }
@@ -522,13 +588,13 @@ HotkeyPauseLabel:
     if (gPaused) {
         Log("[INFO] Script PAUSADO via Hotkey.")
         ToolTip, Macro Pausada
-        MostrarGuiCbgMenu() ; Adicione esta linha para mostrar o menu do CBG
+        MostrarGuiCbgMenu()
     } else {
         Log("[INFO] Script RETOMADO via Hotkey.")
         ToolTip, Macro em Execução
-        Gui, 3:Hide ; Esta linha é opcional, mas esconde o menu ao retomar a execução
+        Gui, 3:Hide
     }
-    SetTimer, RemoveToolTip, -1500
+    SetTimer, RemoveToolTip, -%Sleep_Tooltip%
 Return
 
 SairScriptFunc() {
@@ -558,7 +624,7 @@ Return
 
 ; A função agora passa o manipulador do bitmap diretamente para a GUI de recorte.
 CapturarImagem(controlName, picControl) {
-    global pToken, gCropControlName, gCropPicControl, gCropImgPath
+    global pToken, gCropControlName, gCropPicControl, gCropImgPath, Sleep_RecorteMouse
     Gui, 2:Hide
     
     ToolTip, Clique e arraste para selecionar a área da imagem. Pressione ESC para cancelar.
@@ -571,7 +637,7 @@ CapturarImagem(controlName, picControl) {
         GetKeyState, LButtonState, LButton, P
         if (LButtonState = "U")
             break
-        Sleep, 10
+        Sleep, %Sleep_RecorteMouse%
     }
     
     MouseGetPos, x2, y2
@@ -652,7 +718,7 @@ AbrirGuiRecorte(pBitmapOriginal) {
 }
 
 RecorteSel:
-    global gCrop_x1, gCrop_y1, gCrop_x2, gCrop_y2, gPicControlId, gIsDragging
+    global gCrop_x1, gCrop_y1, gCrop_x2, gCrop_y2, gPicControlId, gIsDragging, Sleep_RecorteMouse
     
     ; Inicia o arraste quando o botão é pressionado
     if (A_GuiEvent = "Normal")
@@ -660,7 +726,7 @@ RecorteSel:
         Log("DEBUG: Início do arraste. Capturando coordenadas de início.")
         MouseGetPos, gCrop_x1, gCrop_y1, , %gPicControlId%
         gIsDragging := true
-        SetTimer, RecorteDrawingLoop, 10
+        SetTimer, RecorteDrawingLoop, %Sleep_RecorteMouse%
     }
 Return
 
@@ -683,7 +749,7 @@ RecorteDrawingLoop:
         w := Abs(gCrop_x1 - gCrop_x2)
         h := Abs(gCrop_y1 - gCrop_y2)
         ToolTip, Recorte: x%x%, y%y%, w%w%, h%h%
-        SetTimer, RemoveToolTip, -2000
+        SetTimer, RemoveToolTip, -%Sleep_Tooltip%
         
         ; Redesenha a imagem final com o retângulo para visualização
         Gdip_GraphicsFromImage(gCropBitmap, gCropGraphics)
@@ -723,7 +789,7 @@ EditarRecorte:
 Return
 
 SalvarRecorte:
-    global gCropImgPath, gCropControlName, gCropPicControl, pToken
+    global gCropImgPath, gCropControlName, gCropPicControl, pToken, Sleep_SalvarRecorte
     global gCrop_x1, gCrop_y1, gCrop_x2, gCrop_y2, gCropBitmapOriginal, gCropBitmap, gCropGraphics
     
     GuiControlGet, defaultFileName, 2:, %gCropControlName%
@@ -784,7 +850,7 @@ SalvarRecorte:
             pBitmapToSave := Gdip_CreateBitmapFromFile(gCropImgPath)
             if (pBitmapToSave)
                 break
-            Sleep, 200
+            Sleep, %Sleep_SalvarRecorte%
         }
         
         if (!pBitmapToSave) {
@@ -822,7 +888,7 @@ SalvarRecorte:
     Gui, 3:Destroy
     Gui, 2:Show
     MsgBox, 64, Sucesso, Imagem "%imgFileName%" salva com sucesso!
-Return
+    Return
 
 CancelarRecorte:
     global gCropImgPath, gCropBitmapOriginal, gCropBitmap, gCropGraphics
