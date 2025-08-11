@@ -31,7 +31,7 @@ global gLogFileCbG ; Nova inicialização da variável de log
 global gConfig := A_ScriptDir "\config\cbg_config.ini"
 global gImagensPath := A_ScriptDir "\imagens\cbg"
 global StatusLabel
-global MoverFixoX, MoverFixoY, Max_Offset, Tolerancia, LinhasDoLog
+global MoverFixoX, MoverFixoY, Max_Offset, Tolerancia
 global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
 global PicAtk, PicOk1, PicBat1, PicBat2, PicDimas, PicDef, PicAlerta, PicFuga, PicRender
 global gHotkeyPause, gHotkeyExit, gMaxLogLines, HotkeyPauseEdit, HotkeyExitEdit
@@ -134,7 +134,7 @@ Return
 ; LÓGICA DA GUI DE CONFIGURAÇÕES
 ; ==================================
 AbrirConfiguracoes() {
-    global MoverFixoX, MoverFixoY, Max_Offset, Tolerancia, gMaxLogLines, LinhasDoLog
+    global MoverFixoX, MoverFixoY, Max_Offset, Tolerancia, gMaxLogLines
     global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
     global gHotkeyPause, gHotkeyExit, HotkeyPauseEdit, HotkeyExitEdit
     global PicAtk, PicDef, PicTropas, PicBat1, PicBat2, PicOk1, PicAlerta, PicFuga, PicRender, PicDimas
@@ -152,10 +152,8 @@ AbrirConfiguracoes() {
     Gui, 2:Add, GroupBox, x10 y40 w250 h250, Gerais
     Gui, 2:Add, Text, x20 y70, Offset Máximo:
     Gui, 2:Add, Edit, x180 y65 w60 vMax_Offset, %Max_Offset%
-    Gui, 2:Add, Text, x20 y100, Linhas do Log:
-    Gui, 2:Add, Edit, x180 y95 w60 vLinhasDoLog, %gMaxLogLines%
-    Gui, 2:Add, Text, x20 y130, Velocidade Mouse:
-    Gui, 2:Add, Edit, x180 y125 w60 vMoverFixoVelocidade, %MoverFixoVelocidade%
+    Gui, 2:Add, Text, x20 y100, Velocidade Mouse:
+    Gui, 2:Add, Edit, x180 y95 w60 vMoverFixoVelocidade, %MoverFixoVelocidade%
 
     Gui, 2:Add, GroupBox, x280 y40 w250 h250, Coordenadas
     Gui, 2:Add, Text, x290 y70, Mover Fixo X:
@@ -251,7 +249,7 @@ AddImageControl(x, y, label, varName, picVarName) {
 }
 
 SalvarConfiguracoes() {
-    global gConfig, gImagensPath, MoverFixoX, MoverFixoY, Max_Offset, gMaxLogLines, LinhasDoLog, Tolerancia
+    global gConfig, gImagensPath, MoverFixoX, MoverFixoY, Max_Offset, gMaxLogLines, Tolerancia
     global imgAtk, imgDef, imgTropas, imgBat1, imgBat2, imgOk1, imgAlerta, imgFuga, imgRender, imgDimas
     global gHotkeyPause, gHotkeyExit, HotkeyPauseEdit, HotkeyExitEdit
     global Sleep_Tempo, Sleep_PausaLoop, Sleep_RecorteMouse, Sleep_SalvarRecorte, Sleep_Tooltip, Sleep_FugaClick, Sleep_RenderLoop
@@ -262,7 +260,6 @@ SalvarConfiguracoes() {
     IniWrite, %MoverFixoX%, %gConfig%, GERAL, MoverFixoX
     IniWrite, %MoverFixoY%, %gConfig%, GERAL, MoverFixoY
     IniWrite, %Max_Offset%, %gConfig%, GERAL, Max_Offset
-    IniWrite, %LinhasDoLog%, %gConfig%, GERAL, LinhasDoLog
     IniWrite, %MoverFixoVelocidade%, %gConfig%, GERAL, MoverFixoVelocidade
     IniWrite, %Tolerancia%, %gConfig%, IMAGENS, Tolerancia
     
@@ -337,7 +334,6 @@ LerConfiguracoes() {
     IniRead, MoverFixoY, %gConfig%, GERAL, MoverFixoY, 155
     IniRead, MoverFixoVelocidade, %gConfig%, GERAL, MoverFixoVelocidade, 0
     IniRead, Max_Offset, %gConfig%, GERAL, Max_Offset, 42
-    IniRead, gMaxLogLines, %gConfig%, GERAL, LinhasDoLog, 20
     
     IniRead, imgAtk, %gConfig%, IMAGENS, atk, Atk.png
     IniRead, imgDef, %gConfig%, IMAGENS, def, Def.png
